@@ -1,8 +1,12 @@
 import argparse
+import logging
 from kafka import KafkaConsumer
 from influxdb import InfluxDBClient
 
 if __name__ == '__main__':
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)
+
     parser = argparse.ArgumentParser()
     parser.add_argument("-kbs", "--kafka_bootstrap_servers", default="localhost:9092")
     parser.add_argument("-kt", "--kafka_topic", default="")
@@ -19,20 +23,23 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    kafkaConsumer = KafkaConsumer(args.kafka_topic,
-        group_id=args.kafka_group,
+    kafkaConsumer = KafkaConsumer(group_id=args.kafka_group,
         bootstrap_servers=args.kafka_bootstrap_servers,
         max_poll_records=args.kafka_max_poll_records)
+    kafkaConsumer.subscribe(args.kafka_topic)
 
     influxClient = InfluxDBClient(args.influxdb_host,
         port=args.influxdb_port,
         database=args.influxdb_dbname)
 
     for msg in kafkaConsumer:
-        payload = msg.value.decode('utf-8')
-        print(payload)
-        influxClient.write_points(points=[payload],
-            time_precision=args.influxdb_time_precision,
-            retention_policy=args.influxdb_retention_policy,
-            batch_size=args.influxdb_batch_size,
-            protocol=args.influxdb_protocol)
+        try:
+            payload = msg.value.decode('utf-8')
+            logger.debug(payload)
+            influxClient.write_points(points=[payload],
+                time_precision=args.influxdb_time_precision,
+                retention_policy=args.influxdb_retention_policy,
+                batch_size=args.influxdb_batch_size,
+                protocol=args.influxdb_protocol)
+        except Exception as e:
+            logger.error(e)
