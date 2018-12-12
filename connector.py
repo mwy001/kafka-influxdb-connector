@@ -16,7 +16,7 @@ if __name__ == '__main__':
     parser.add_argument("-ih", "--influxdb_host", default="localhost")
     parser.add_argument("-ip", "--influxdb_port", default=8086, type=int)
     parser.add_argument("-id", "--influxdb_dbname", default="")
-    parser.add_argument("-irp", "--influxdb_retention_policy", default="default")
+    parser.add_argument("-irp", "--influxdb_retention_policy", default="autogen")
     parser.add_argument("-itp", "--influxdb_time_precision", default="ms")
     parser.add_argument("-ids", "--influxdb_batch_size", default=10, type=int)
     parser.add_argument("-ipt", "--influxdb_protocol", default="line")
@@ -32,14 +32,22 @@ if __name__ == '__main__':
         port=args.influxdb_port,
         database=args.influxdb_dbname)
 
+    influx_buf = []
+
     for msg in kafkaConsumer:
         try:
             payload = msg.value.decode('utf-8')
-            logger.debug(payload)
-            influxClient.write_points(points=[payload],
-                time_precision=args.influxdb_time_precision,
-                retention_policy=args.influxdb_retention_policy,
-                batch_size=args.influxdb_batch_size,
-                protocol=args.influxdb_protocol)
+
+            influx_buf.append(payload)
+
+            if len(influx_buf) == args.influxdb_batch_size:
+                influxClient.write_points(points=influx_buf,
+                    time_precision=args.influxdb_time_precision,
+                    retention_policy=args.influxdb_retention_policy,
+                    batch_size=args.influxdb_batch_size,
+                    protocol=args.influxdb_protocol)
+                influx_buf.clear()
+
         except Exception as e:
-            logger.error(e)
+            # print(e)
+            pass
